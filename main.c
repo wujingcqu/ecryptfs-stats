@@ -37,7 +37,18 @@
 #include <linux/fs_stack.h>
 #include <linux/slab.h>
 #include <linux/magic.h>
+#include <linux/vfs.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/fs.h>
 #include "ecryptfs_kernel.h"
+
+
+ /*Added for timing purpose*/
+struct ecryptfs_time_stats *ecryptfs_time_stat = NULL;
+static struct proc_dir_entry *proc_ecryptfs_time_stat_dir = NULL;
+extern unsigned long time_counter;
+
 
 /**
  * Module parameter that defines the ecryptfs_verbosity level.
@@ -815,6 +826,46 @@ static void do_sysfs_unregistration(void)
 
 struct ecryptfs_async_ctx *async_io_ctx;
 
+
+static int ecryptfs_time_stat_proc_show(struct seq_file *m, void *v)
+{
+	unsigned long i = 0;
+
+	seq_printf(m, "Write_begin crypto_begin crypto_end Write_end Cryto_time IO_time\n");
+	for (i = 0; i < time_counter; i++) {
+		unsigned long wbt = 0, cbt = 0, cet = 0, wet = 0;
+		wbt = ecryptfs_time_stat[i].write_begin_time.tv_sec * 1000000000 + ecryptfs_time_stat[i].write_begin_time.tv_nsec;
+		cbt = ecryptfs_time_stat[i].crypto_begin_time.tv_sec * 1000000000 + ecryptfs_time_stat[i].crypto_begin_time.tv_nsec;
+		cet = ecryptfs_time_stat[i].crypto_end_time.tv_sec * 1000000000 + ecryptfs_time_stat[i].crypto_end_time.tv_nsec;
+		wet = ecryptfs_time_stat[i].write_end_time.tv_sec * 1000000000 + ecryptfs_time_stat[i].write_end_time.tv_nsec;
+		seq_printf(m, "%lu %lu %lu %lu %lu %lu\n", wbt, cbt, cet, wet, cet - cbt, wet - wbt);
+	}
+
+	return 0;
+}
+
+static int ecryptfs_time_stat_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ecryptfs_time_stat_proc_show, ecryptfs_time_stat);
+}
+
+
+static ssize_t ecryptfs_time_stat_proc_write(struct file *file, const char __user *buffer, size_t count, loff_t *off)
+{
+	memset(ecryptfs_time_stat, 0, 10000 * sizeof(struct ecryptfs_time_stats));
+	time_counter = 0;
+	
+	return count;
+}
+
+static const struct file_operations ecryptfs_time_stat_proc_fops = {
+	.open = ecryptfs_time_stat_proc_open,
+	.read = seq_read,
+	.write = ecryptfs_time_stat_proc_write,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int __init ecryptfs_init(void)
 {
 	int rc;
@@ -883,6 +934,15 @@ static int __init ecryptfs_init(void)
 		printk(KERN_CRIT "eCryptfs verbosity set to %d. Secret values "
 			"will be written to the syslog!\n", ecryptfs_verbosity);
 
+	ecryptfs_time_stat = vmalloc(sizeof(struct ecryptfs_time_stats) * 10000);
+	if (!ecryptfs_time_stat) {
+		rc = -ENOMEM;
+		printk("Failed to allocate memory for ecryptfs_time_stats\n");
+		goto out;
+	}
+
+	proc_ecryptfs_time_stat_dir = proc_create("ecryptfs_time_stat", 0, NULL, &ecryptfs_time_stat_proc_fops);
+
 	goto out;
 out_destroy_crypto:
 	ecryptfs_destroy_crypto();
@@ -914,6 +974,8 @@ static void __exit ecryptfs_exit(void)
 	unregister_filesystem(&ecryptfs_fs_type);
 	ecryptfs_free_kmem_caches();
 	ecryptfs_deinit_async_ctx(async_io_ctx);
+	vfree(ecryptfs_time_stat);
+	proc_remove(proc_ecryptfs_time_stat_dir);
 }
 
 MODULE_AUTHOR("Michael A. Halcrow <mhalcrow@us.ibm.com>");

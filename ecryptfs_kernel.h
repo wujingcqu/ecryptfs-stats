@@ -786,4 +786,11 @@ extern struct ecryptfs_async_ctx *async_io_ctx;
 extern int ecryptfs_init_async_ctx(struct ecryptfs_async_ctx *ctx);
 extern int ecryptfs_deinit_async_ctx(struct ecryptfs_async_ctx *ctx);
 
+struct ecryptfs_time_stats {
+	struct timespec write_begin_time;
+	struct timespec crypto_begin_time;
+	struct timespec crypto_end_time;
+	struct timespec write_end_time;
+};
+
 #endif /* #ifndef ECRYPTFS_KERNEL_H */

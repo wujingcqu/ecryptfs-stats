@@ -40,6 +40,10 @@
 #define DECRYPT		0
 #define ENCRYPT		1
 
+
+extern struct ecryptfs_time_stats *ecryptfs_time_stat;
+extern unsigned long time_counter;
+
 /**
  * ecryptfs_to_hex
  * @dst: Buffer to take hex character representation of contents of
@@ -605,6 +609,7 @@ int ecryptfs_encrypt_page(struct page *page)
 		goto out;
 	}
 
+	getrawmonotonic(&ecryptfs_time_stat[time_counter].crypto_begin_time);
 	for (extent_offset = 0;
 	     extent_offset < (PAGE_CACHE_SIZE / crypt_stat->extent_size);
 	     extent_offset++) {
@@ -616,6 +621,7 @@ int ecryptfs_encrypt_page(struct page *page)
 			goto out;
 		}
 	}
+	getrawmonotonic(&ecryptfs_time_stat[time_counter].crypto_end_time);
 
 	lower_offset = lower_offset_for_page(crypt_stat, page);
 	enc_extent_virt = kmap(enc_extent_page);

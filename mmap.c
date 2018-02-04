@@ -36,6 +36,9 @@
 #include <asm/unaligned.h>
 #include "ecryptfs_kernel.h"
 
+extern struct ecryptfs_time_stats *ecryptfs_time_stat;
+unsigned long time_counter = 0;
+
 /**
  * ecryptfs_get_locked_page
  *
@@ -284,6 +287,8 @@ static int ecryptfs_write_begin(struct file *file,
 	struct page *page;
 	loff_t prev_page_end_size;
 	int rc = 0;
+
+	getrawmonotonic(&ecryptfs_time_stat[time_counter].write_begin_time);
 
 	page = grab_cache_page_write_begin(mapping, index, flags);
 	if (!page)
@@ -535,6 +540,9 @@ static int ecryptfs_write_end(struct file *file,
 out:
 	unlock_page(page);
 	page_cache_release(page);
+
+	getrawmonotonic(&ecryptfs_time_stat[time_counter++].write_end_time);
+
 	return rc;
 }
 
